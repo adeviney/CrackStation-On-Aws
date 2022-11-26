@@ -1,12 +1,15 @@
 import boto3
 import hashlib
 
-s3 = boto3.client('s3')
 
-BUCKET_NAME = 'crackstation-data'
-FILE_NAME = 'hashdata.csv.gz'
+
 
 def getPasswordByQueryS3(shaHash):
+    s3 = boto3.client('s3')
+
+    BUCKET_NAME = 'crackstation-data'
+    FILE_NAME = 'hashdata.csv.gz'
+
     resp = s3.select_object_content(
         Bucket=BUCKET_NAME,
         Key=FILE_NAME,
