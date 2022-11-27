@@ -17,6 +17,11 @@ type password struct {
 	Password string `json:"password"`
 }
 
+type uncrackedResponse struct {
+	RequestedShaHash string `json:"requestedShaHash"`
+	Error            string `json:"Error"`
+}
+
 func HandleRequest(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	shaHash := request.PathParameters["shaHash"]
 	if shaHash != "" {
@@ -40,9 +45,12 @@ func HandleRequest(request events.APIGatewayProxyRequest) (events.APIGatewayProx
 		}
 		if len(result.Item) == 0 {
 			fmt.Println("No results found!")
-			body := fmt.Sprintf(`{"requestedShaHash": "%s", "Error": "Could not crack! This hash is unknown to CrackStation"}`, shaHash)
-			bodyJS, _ := json.Marshal(body)
-			return events.APIGatewayProxyResponse{Body: string(bodyJS), StatusCode: 404}, nil
+			noresults := &uncrackedResponse{
+				RequestedShaHash: shaHash,
+				Error:            "Could not crack. This hash is unknown to CrackStation.",
+			}
+			body, _ := json.Marshal(noresults)
+			return events.APIGatewayProxyResponse{Body: string(body), StatusCode: 404}, nil
 		}
 
 		// The result.Item object returned has the underlying type
