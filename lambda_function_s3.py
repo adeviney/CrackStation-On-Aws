@@ -1,4 +1,5 @@
 import boto3
+import json
 
 def lambda_handler(event, context):
     shaHash = event['shaHash']
@@ -13,7 +14,7 @@ def lambda_handler(event, context):
         ExpressionType='SQL',
         Expression=f"SELECT * FROM S3object s where s.shaHash = '{shaHash}'",
         InputSerialization = {'CSV': {"FileHeaderInfo": "Use"}, 'CompressionType': 'GZIP'},
-        OutputSerialization = {'JSON': {"RecordDelimiter": ","}}
+        OutputSerialization = {'JSON': {}}
     )
 
     # This is the event stream in the response
@@ -26,6 +27,7 @@ def lambda_handler(event, context):
         # If we received a records event, write the data to a file
         if 'Records' in e:
             passwords = (e['Records']['Payload'].decode('utf-8'))
+            passwords = json.loads(passwords)
         # If we received a progress event, print the details
         elif 'Progress' in e:
             print(e['Progress']['Details'])
@@ -38,5 +40,5 @@ def lambda_handler(event, context):
         raise Exception("Incomplete: End event not received, request incomplete.")
     elif not passwords:
         raise Exception(f"Uncrackable: CrackStation could not crack this hash, {shaHash}. Either it is not known to CrackStation or it is salted.")
-
+    
     return passwords
