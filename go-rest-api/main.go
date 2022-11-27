@@ -6,6 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// adapted from tutorial https://go.dev/doc/tutorial/web-service-gin
+
 type password struct {
 	Shahash  string `json:"shaHash"`
 	Password string `json:"password"`
@@ -34,9 +36,24 @@ func postPasswords(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, newPassword)
 }
 
+func getPasswordByHash(c *gin.Context) {
+	hash := c.Param("shahash")
+
+	for _, p := range passwords {
+		if p.Shahash == hash {
+			c.IndentedJSON(http.StatusOK, p)
+			return
+		}
+	}
+
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "password not found"})
+
+}
+
 func main() {
 	router := gin.Default()
 	router.GET("/passwords", getPasswords)
+	router.GET("/passwords/:shahash", getPasswordByHash)
 	router.POST("/passwords", postPasswords)
 
 	router.Run("localhost:8080")
