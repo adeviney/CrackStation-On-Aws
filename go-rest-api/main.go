@@ -15,7 +15,7 @@ import (
 
 // adapted from tutorial https://go.dev/doc/tutorial/web-service-gin
 
-var mc = memcache.New("passwordcache.4fxm87.cfg.use1.cache.amazonaws.com:11211")
+var mc = memcache.New("password-cache.4fxm87.cfg.use1.cache.amazonaws.com:11211")
 
 type password struct {
 	ShaHash  string `json:"shaHash"`
@@ -71,21 +71,22 @@ func getPassword(c *gin.Context) {
 				return
 			} else {
 				pwAsJSON, _ := json.Marshal(pwAsStruct)
-				fmt.Printf("pwAsJson %T\n", pwAsJSON)
-				fmt.Println(pwAsJSON)
-				cacheErr := mc.Set(&memcache.Item{Key: hash, Value: []byte(pwAsStruct.Password), Expiration: 10})
+				cacheErr := mc.Set(&memcache.Item{Key: hash, Value: []byte(pwAsStruct.Password), Expiration: 60})
+
 				if cacheErr != nil {
 					fmt.Printf("there was an error adding to cache")
 					print(cacheErr)
 				}
+				fmt.Printf("{%s:%s} added to cache\n", hash, pwAsStruct.Password)
+
 				c.Data(http.StatusOK, "application/json", pwAsJSON)
 				return
 			}
 		} else {
-			fmt.Printf("pwFromCache %T\n", pwFromCache)
-			pwAsJSON, _ := json.Marshal(pwFromCache)
-			fmt.Println(pwAsJSON)
-			c.Data(http.StatusOK, "application/json", pwAsJSON)
+			passwordresp := password{ShaHash: hash, Password: fmt.Sprintf("%s", pwFromCache)}
+			passwordresp_json, _ := json.Marshal(passwordresp)
+
+			c.Data(http.StatusOK, "application/json", passwordresp_json)
 			return
 		}
 
@@ -93,21 +94,15 @@ func getPassword(c *gin.Context) {
 
 }
 
-func checkCache(hash string) (*memcache.Item, error) {
+func checkCache(hash string) ([]byte, error) {
 	val, err := mc.Get(hash)
 	if err != nil {
+		fmt.Println("Cache Miss")
 		return nil, err
 	}
+	fmt.Printf("yay! Cache Hit. Answer: %s\n", val.Value)
+	return val.Value, nil
 
-	//pw := password{}
-
-	// err = json.Unmarshal(val, &pw)
-
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to UnmarshalMap result.Item: %s", err.Error()))
-	// }
-
-	return val, nil
 }
 
 func getPasswordByHash(hash string) (*password, *crackstationAppError) {
@@ -157,5 +152,5 @@ func main() {
 	router.GET("/passwords", missingShaHash)
 	router.POST("/decrypt", postPasswords)
 
-	router.Run("localhost:8080")
+	router.Run(":8080")
 }
