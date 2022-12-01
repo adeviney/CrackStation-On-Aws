@@ -65,9 +65,11 @@ func HandleRequest(request events.APIGatewayProxyRequest) (events.APIGatewayProx
 			panic(fmt.Sprintf("Failed to UnmarshalMap result.Item: ", err))
 		}
 
-		js, err := json.Marshal(pw)
+		//js, err := json.Marshal(pw)
+		responseBody := fmt.Sprintf("{\"%s\": \"%s\"}", pw.ShaHash, pw.Password)
+		
 
-		return events.APIGatewayProxyResponse{Body: string(js), StatusCode: 200}, nil
+		return events.APIGatewayProxyResponse{Body: responseBody, StatusCode: 200}, nil
 
 	} else {
 		return events.APIGatewayProxyResponse{Body: "Error: Query Parameter name missing", StatusCode: 404}, nil
