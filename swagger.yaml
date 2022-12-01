@@ -37,8 +37,8 @@ paths:
       produces:
       - "application/json"
       responses:
-        "400":
-          description: "Invalid Request. Missing shaHash parameter."
+        "404":
+          description: "Missing shaHash parameter."
   /v1/password/{shaHash}:
     get:
       consumes:
@@ -67,7 +67,7 @@ paths:
       produces:
       - "application/json"
       responses:
-        "400":
+        "404":
           description: "Invalid Request. Missing shaHash parameter."
   /v2/password/{shaHash}:
     get:
@@ -79,8 +79,6 @@ paths:
       responses:
         "200":
           description: "OK. Plaintext password is returned."
-        "400":
-          description: "Invalid Request. Missing shaHash parameter."
         "500":
           description: "There is an internal error related to communication with DynamoDB."
         "404":
