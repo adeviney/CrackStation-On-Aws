@@ -149,8 +149,8 @@ func missingShaHash(c *gin.Context) {
 
 func main() {
 	router := gin.Default()
-	router.GET("/passwords/:shahash", getPassword)
-	router.GET("/passwords", missingShaHash)
+	router.GET("/password/:shahash", getPassword)
+	router.GET("/password", missingShaHash)
 	router.POST("/decrypt", postPasswords)
 
 	router.Run(":8080")
