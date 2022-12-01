@@ -1,20 +1,23 @@
 ---
 swagger: "2.0"
 info:
-  version: "1.0.0"
+  version: "1.0.1"
   title: "CrackStationAPI"
   description: "The CrackStation API will return the plaintext password from its unsalted hash.
   
   
-  Departing from convention, this API is labeled by its *minor* version number. The resources and methods are compatible between versions. They only differ in their implementation (and thus performance). 
+ The API requires HTTPS and will not respond to or redirect HTTP requests.
+ 
+  
+  Departing from convention, this API is labeled by its *minor* version number. The resources and methods are compatible between versions. They only differ in their implementation (and thus performance). The labeling serves no purpose other than to differentiate different implementations. Admittedly, this unnecessarily convults things for the end user. In the future, less performant implementations may be deprecated.
   
   ### Version 1, paths preceded by `/v1/`
   
-  * Don't use this version. It only exists for pedagogical and demonstrative purposes. 
+  * Don't use this version if you care about performance. It only exists for pedagogical and demonstrative purposes for comparison of implementation techniques.
   
-  * Because of its implementation with Python and S3, this version is significantly slower than Version 2. 
+  * Because of its implementation with Python and S3, this version is significantly slower than Version 2.
   
-  * While AWS documentation is not particularly forthcoming about how S3 Select is implemented, we might assume the time efficiency is around O(logn). To be sure, further tests on data sets of different sizes will have to be conducted.
+  * While AWS documentation is not particularly forthcoming about how S3 Select is implemented, we might assume the time efficiency is around O(logn) or maybe even less efficent than this if S3 Select has no indexing. To be sure, further tests on data sets of different sizes will have to be conducted.
   
   
   ### Version 2, paths preceded by `/v2/`
@@ -52,7 +55,7 @@ paths:
         type: "string"
       responses:
         "200":
-          description: "OK. Plaintext password is returned."
+          description: "JSON response {\"< shahash >\" : \" < password >\"}, where password is the shaHash in the request and password is the plaintext password."
           headers:
             Access-Control-Allow-Origin:
               type: "string"
@@ -78,7 +81,7 @@ paths:
         type: "string"
       responses:
         "200":
-          description: "OK. Plaintext password is returned."
+          description: "JSON response {\"< shahash >\" : \" < password >\"}, where password is the shaHash in the request and password is the plaintext password."
         "500":
           description: "There is an internal error related to communication with DynamoDB."
         "404":
