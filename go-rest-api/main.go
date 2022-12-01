@@ -50,46 +50,84 @@ func postPasswords(c *gin.Context) {
 	}
 }
 
+func getPasswordByHash(hash string) (*password, *crackstationAppError) {
+	if hash == "" {
+		return nil, &crackstationAppError{fmt.Errorf("missing shahash parameter"), "missing sha hash parameter", http.StatusBadRequest}
+	} else {
+		pwFromCache, err := checkCache(hash)
+		if err != nil { // not cached
+
+			// CHECK DYNAMODB
+			sess, err := session.NewSession()
+			if err != nil {
+				return nil, &crackstationAppError{err, "could not reach dynamoDB. GetItem failed.", 500}
+			}
+			var db = dynamodb.New(sess, aws.NewConfig().WithRegion("us-east-1"))
+
+			input := &dynamodb.GetItemInput{
+				TableName: aws.String("rainbowlookup"),
+				Key: map[string]*dynamodb.AttributeValue{
+					"shaHash": {
+						S: aws.String(hash),
+					},
+				},
+			}
+
+			result, err := db.GetItem(input)
+			if err != nil {
+				return nil, &crackstationAppError{err, "could not reach dynamoDB. GetItem failed.", 500}
+			}
+
+			if len(result.Item) == 0 {
+				return nil, &crackstationAppError{fmt.Errorf("not found:  %s", hash), "no results found", 404}
+			}
+
+			pw := password{}
+
+			err = dynamodbattribute.UnmarshalMap(result.Item, &pw)
+
+			if err != nil {
+				panic(fmt.Sprintf("Failed to UnmarshalMap result.Item: %s", err.Error()))
+			}
+
+			// ADD TO CACHE
+
+			cacheErr := mc.Set(&memcache.Item{Key: hash, Value: []byte(pw.Password), Expiration: 60})
+
+			if cacheErr != nil {
+				fmt.Printf("there was an error adding to cache")
+				print(cacheErr)
+			} else {
+				fmt.Printf("{%s:%s} added to cache\n", hash, pw.Password)
+			}
+
+			return &pw, nil
+
+		} else { // CACHED
+
+			passwordresp := password{ShaHash: hash, Password: fmt.Sprintf("%s", pwFromCache)}
+			return &passwordresp, nil
+
+		}
+	}
+}
+
 func getPassword(c *gin.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
+			fmt.Println("Recovered in getPassword", r)
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "unexpected error"})
 		}
 	}()
 	hash := c.Param("shahash")
 
-	if hash == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing shahash parameter"})
+	pwAsStruct, err := getPasswordByHash(hash)
+	if err != nil { // err is *crackstationAppError, not os.Error
+		c.IndentedJSON(err.Code, gin.H{"requestedShaHash": hash, "message": err.Message})
 		return
 	} else {
-		pwFromCache, err := checkCache(hash)
-		if err != nil { // not cached
-			pwAsStruct, err := getPasswordByHash(hash)
-			if err != nil { // err is *crackstationAppError, not os.Error
-				c.JSON(err.Code, gin.H{"requestedShaHash": hash, "message": err.Message})
-				return
-			} else {
-				pwAsJSON, _ := json.Marshal(pwAsStruct)
-				cacheErr := mc.Set(&memcache.Item{Key: hash, Value: []byte(pwAsStruct.Password), Expiration: 60})
-
-				if cacheErr != nil {
-					fmt.Printf("there was an error adding to cache")
-					print(cacheErr)
-				}
-				fmt.Printf("{%s:%s} added to cache\n", hash, pwAsStruct.Password)
-
-				c.Data(http.StatusOK, "application/json", pwAsJSON)
-				return
-			}
-		} else {
-			passwordresp := password{ShaHash: hash, Password: fmt.Sprintf("%s", pwFromCache)}
-			passwordresp_json, _ := json.Marshal(passwordresp)
-
-			c.Data(http.StatusOK, "application/json", passwordresp_json)
-			return
-		}
-
+		pwAsJSON, _ := json.Marshal(pwAsStruct)
+		c.Data(http.StatusOK, "application/json", pwAsJSON)
 	}
 
 }
@@ -102,43 +140,6 @@ func checkCache(hash string) ([]byte, error) {
 	}
 	fmt.Printf("yay! Cache Hit. Answer: %s\n", val.Value)
 	return val.Value, nil
-
-}
-
-func getPasswordByHash(hash string) (*password, *crackstationAppError) {
-	sess, err := session.NewSession()
-	if err != nil {
-		return nil, &crackstationAppError{err, "could not reach dynamoDB. GetItem failed.", 500}
-	}
-	var db = dynamodb.New(sess, aws.NewConfig().WithRegion("us-east-1"))
-
-	input := &dynamodb.GetItemInput{
-		TableName: aws.String("rainbowlookup"),
-		Key: map[string]*dynamodb.AttributeValue{
-			"shaHash": {
-				S: aws.String(hash),
-			},
-		},
-	}
-
-	result, err := db.GetItem(input)
-	if err != nil {
-		return nil, &crackstationAppError{err, "could not reach dynamoDB. GetItem failed.", 500}
-	}
-
-	if len(result.Item) == 0 {
-		return nil, &crackstationAppError{fmt.Errorf("not found:  %s", hash), "no results found", 404}
-	}
-
-	pw := password{}
-
-	err = dynamodbattribute.UnmarshalMap(result.Item, &pw)
-
-	if err != nil {
-		panic(fmt.Sprintf("Failed to UnmarshalMap result.Item: %s", err.Error()))
-	}
-
-	return &pw, nil
 
 }
 
