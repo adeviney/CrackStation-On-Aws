@@ -12,9 +12,9 @@ def lambda_handler(event, context):
         Bucket=BUCKET_NAME,
         Key=FILE_NAME,
         ExpressionType='SQL',
-        Expression=f"SELECT * FROM S3object s where s.shaHash = '{shaHash}'",
+        Expression=f"SELECT s.password FROM S3object s where s.shaHash = '{shaHash}'",
         InputSerialization = {'CSV': {"FileHeaderInfo": "Use"}, 'CompressionType': 'GZIP'},
-        OutputSerialization = {'JSON': {}}
+        OutputSerialization = {'CSV': {}}
     )
 
     # This is the event stream in the response
@@ -27,7 +27,10 @@ def lambda_handler(event, context):
         # If we received a records event, write the data to a file
         if 'Records' in e:
             passwords = (e['Records']['Payload'].decode('utf-8'))
-            passwords = json.loads(passwords)
+            password = passwords.strip()
+            responseString = f'{{ "{shaHash}": "{password}" }}'
+            print(responseString)
+            responseString = json.loads(responseString)
         # If we received a progress event, print the details
         elif 'Progress' in e:
             print(e['Progress']['Details'])
@@ -41,4 +44,4 @@ def lambda_handler(event, context):
     elif not passwords:
         raise Exception(f"Uncrackable: CrackStation could not crack this hash, {shaHash}. Either it is not known to CrackStation or it is salted.")
     
-    return passwords
+    return responseString
