@@ -1,0 +1,115 @@
+openapi: "3.0.1"
+info:
+  title: "CrackStationAPI"
+  version: "1.0.2"
+  description: |-
+    The CrackStation API will return the plaintext password from its unsalted hash.
+     The API requires HTTPS and will not respond to or redirect HTTP requests.
+     
+     Departing from convention, this API is labeled by its *minor* version number. The resources and methods are compatible between versions. They only differ in their implementation (and thus performance). The labeling serves no purpose other than to differentiate different implementations. Admittedly, this unnecessarily convults things for the end user. In the future, less performant implementations may be deprecated.
+     
+       ###  Version 1, paths preceded by `/v1/`
+       * Don't use this version if you care about performance. It only exists for pedagogical and demonstrative purposes for comparison of implementation techniques.
+        * Because of its implementation with Python and S3, this version is significantly slower than Version 2.
+        * While AWS documentation is not particularly forthcoming about how S3 Select is implemented, we might assume the time efficiency is around O(logn) or maybe even less efficent than this if S3 Select has no indexing. To be sure, further tests on data sets of different sizes will have to be conducted.
+      ### Version 2, paths preceded by `/v2/`
+      - This implementation owes its performance gains to its use of a Lambda function written in Golang and DynamoDB.
+      - Time efficency is linear, O(1), because each shaHash is its own partition key in the DynamoDB database.
+servers:
+- url: "https://api.thecrackstation.com"
+paths:
+  /v1/password/{shaHash}:
+    get:
+      parameters:
+      - name: "shaHash"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "Returns key-value pair of shaHash: password"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordMapping'
+        "404":
+          description: "404 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFound404"
+          
+        "500":
+          description: "500 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError500"
+  /v2/password/{shaHash}:
+    get:
+      parameters:
+      - name: "shaHash"
+        in: "path"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "Returns key-value pair of shaHash: password"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordMapping'
+        "404":
+          description: "404 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFound404"
+          
+        "500":
+          description: "500 response"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError500"
+components:
+  schemas:
+    PasswordMapping:
+      title: "SuccessfulResponse"
+      type: object
+      additionalProperties:
+        type: string
+      example:
+        "3a987acf8cbc1028b7dbc86bd086831151899a2b": "hi!"
+      description: "response when the requested hash is found"
+    NotFound404:
+      title: "Uncrackable"
+      type: "object"
+      properties:
+        requestedShaHash:
+          type: "string"
+          description: "The sha hash in the request"
+        message:
+          type: "string"
+          description: "The explanation of 404 error."
+      example:
+        requestedShaHash: "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
+        message: "Could not be cracked. The hash is unknown to CrackStation."
+      description: "Response when not found"
+    InternalError500:
+      title: "InternalError"
+      type: "object"
+      properties:
+        requestedShaHash:
+          type: "string"
+          description: "The sha hash in the request"
+        message:
+          type: "string"
+          description: "The explanation of 500 error."
+      example:
+        requestedShahash: "389a5fba3839bbe527308839e99c8dc2a2143996"
+        description: "Could not be cracked. There was an interal error."
+      description: "InternalError"
+
