@@ -70,7 +70,7 @@ func HandleRequest(request events.APIGatewayProxyRequest) (events.APIGatewayProx
 		return events.APIGatewayProxyResponse{Body: string(js), StatusCode: 200}, nil
 
 	} else {
-		return events.APIGatewayProxyResponse{Body: "Error: Query Parameter name missing", StatusCode: 422}, nil
+		return events.APIGatewayProxyResponse{Body: "Error: Query Parameter name missing", StatusCode: 404}, nil
 	}
 
 }
