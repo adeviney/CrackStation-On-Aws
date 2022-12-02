@@ -1,8 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -10,7 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/bradfitz/gomemcache/memcache"
+
+	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 // adapted from tutorial https://go.dev/doc/tutorial/web-service-gin
@@ -40,17 +43,17 @@ func postPasswords(c *gin.Context) {
 		return
 	}
 
-	pwAsStruct, err := getPasswordByHash(shaHashRequest.ShaHash)
+	pwresponse, err := getPasswordByHash(shaHashRequest.ShaHash)
 	if err != nil { // err is *crackstationAppError, not os.Error
 		c.IndentedJSON(err.Code, gin.H{"requestedShaHash": shaHashRequest.ShaHash, "message": err.Message})
 		return
 	} else {
-		pwAsJSON, _ := json.Marshal(pwAsStruct)
-		c.Data(http.StatusOK, "application/json", pwAsJSON)
+		// pwAsJSON, _ := json.Marshal(pwAsStruct)
+		c.Data(http.StatusOK, "application/json", pwresponse)
 	}
 }
 
-func getPasswordByHash(hash string) (*password, *crackstationAppError) {
+func getPasswordByHash(hash string) ([]byte, *crackstationAppError) {
 	if hash == "" {
 		return nil, &crackstationAppError{fmt.Errorf("missing shahash parameter"), "missing sha hash parameter", http.StatusBadRequest}
 	} else {
@@ -101,14 +104,15 @@ func getPasswordByHash(hash string) (*password, *crackstationAppError) {
 				fmt.Printf("{%s:%s} added to cache\n", hash, pw.Password)
 			}
 
-			return &pw, nil
+			responseBody := fmt.Sprintf("{\"%s\": \"%s\"}", pw.ShaHash, pw.Password)
+			return []byte(responseBody), nil
 
 		} else { // CACHED
+			responseBody := fmt.Sprintf("{\"%s\": \"%s\"}", hash, fmt.Sprintf("%s", pwFromCache))
 
-			passwordresp := password{ShaHash: hash, Password: fmt.Sprintf("%s", pwFromCache)}
-			return &passwordresp, nil
-
+			return []byte(responseBody), nil
 		}
+
 	}
 }
 
@@ -121,13 +125,13 @@ func getPassword(c *gin.Context) {
 	}()
 	hash := c.Param("shahash")
 
-	pwAsStruct, err := getPasswordByHash(hash)
+	pwresponse, err := getPasswordByHash(hash)
 	if err != nil { // err is *crackstationAppError, not os.Error
 		c.IndentedJSON(err.Code, gin.H{"requestedShaHash": hash, "message": err.Message})
 		return
 	} else {
-		pwAsJSON, _ := json.Marshal(pwAsStruct)
-		c.Data(http.StatusOK, "application/json", pwAsJSON)
+		//pwAsJSON, _ := json.Marshal(pwAsStruct)
+		c.Data(http.StatusOK, "application/json", pwresponse)
 	}
 
 }
@@ -148,10 +152,21 @@ func missingShaHash(c *gin.Context) {
 }
 
 func main() {
-	router := gin.Default()
-	router.GET("/password/:shahash", getPassword)
-	router.GET("/password", missingShaHash)
-	router.POST("/decrypt", postPasswords)
+	r := gin.Default()
 
-	router.Run(":8080")
+	// Ping handler
+	r.GET("/ping", func(c *gin.Context) {
+		c.String(http.StatusOK, "pong")
+	})
+	r.GET("/password/:shahash", getPassword)
+	r.GET("/password", missingShaHash)
+	r.POST("/decrypt", postPasswords)
+
+	m := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist("api.v3.thecrackstation.com", "www.api.v3.thecrackstation.com"),
+		Cache:      autocert.DirCache("/var/www/.cache"),
+	}
+
+	log.Fatal(autotls.RunWithManager(r, &m))
 }
